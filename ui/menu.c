@@ -233,12 +233,19 @@ int main()
     menu_t menu;
     menu_new(&menu, "Title", "Subtitle");
     menu.show_numbers = true;
+   
+    // Set title (again)
+    menu_set_title(&menu, "Main title");
+    menu_set_subtitle(&menu, "Subtitle");
+
+
     menu_add_item(&menu, "item 1");
     menu_add_item(&menu, "item 2");
     menu_add_item(&menu, "item 3");
     menu_add_item(&menu, "item 4");
     menu_add_item(&menu, "item 5");
     menu_add_item(&menu, "item 6");
+
     int ret = menu_show(&menu);
     menu_destroy(&menu);
     return 0;

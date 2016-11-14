@@ -178,10 +178,19 @@ void dialog_destroy(dialog_t *dialog)
 #ifdef DEBUG
 int main()
 {
+    // Create dialog
     dialog_t dialog;
     dialog_new(&dialog, "Title", "Subtitle");
+
+	// Set text
+    dialog_set_title(&dialog, "Main Title");
+    dialog_set_subtitle(&dialog, "Subtitle");
+
+	// Set labels
     dialog_set_yes(&dialog, "Accept");
     dialog_set_no(&dialog, "Disallow");
+	
+	// display dialog
     int ret = dialog_show(&dialog);
     dialog_destroy(&dialog);
     return 0;

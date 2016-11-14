@@ -25,3 +25,10 @@ UI widgets for the console *without ncurses*
 [Bitbucket - Snippets](https://bitbucket.org/snippets/lukashimsel/)  
 [toy-http](https://github.com/lukas-h/toy-http)  
 [my blog](http://himsel.me)
+
+
+### More
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+##### Questions?
+Open an issue!

@@ -1,15 +1,18 @@
 # menu-widget
-menu widget for the (unix) console.
-It is only a bit of code, nothing very good or professional but **without ncurses**.
+menu widget for the (unix) console, **without ncurses**.
   
 # getting started
-this code:
+example:
 ```C
 	// Create menu
 	menu_t menu;
 	menu_new(&menu, "Title", "Subtitle");
 	menu.show_numbers=true;
 	
+	// Set text (again)
+	menu_set_title(&menu, "Main title");
+	menu_set_subtitle(&menu, "Subtitle");
+
 	// Add items
 	menu_add_item(&menu, "item 1");
 	menu_add_item(&menu, "item 2");
@@ -22,28 +25,14 @@ this code:
 	int ret = menu_show(&menu);
 	menu_destroy(&menu);
 ```
-produces this:
-![](http://file.himsel.me/img/console-menu.png)
 
-## reference
-`menu_new(menu_t *menu, char *title, char *subtitle)` creates a new menu. You can activate/deactivate many options, like `show_border`, that activates
-the two lines over and under the items list. It is a `bool` (and can be set to `true` or `false`).
-Another option is `arrow-symb`, a `char`. It is the symbol at the begin of the line of a selected menu item.  
-  
-You can set the design; call the function `menu_set_colors(menu_t *menu, char *active, char *inactive);`
-arguments:  
-1. the context  
-2. the color-sequence for the selected item  
-3. the colorset for the not-selected items  
-  
-For viewing the menu, you need the function `menu_show(menu_t *menu)`.
-Note: 
-You should always call the function `menu_destroy(menu_t *menu)` to free the memory.  
-To see all predefined functions, look into `menu.h`
+## additional
 
-## use in your projects
-You need a C99 compatible compiler, preferred ones are *gcc* and *clang*. Easily add the files `menu.c` and `menu.h`
-to your project and use the predefined menu API. It is incompatible with Microsoft Windows, but it can be compiled with cygwin or something similar
+- with function `void menu_set_colors(menu_t *menu, char *active, char *inactive)`, you can set fore- and background color, `active` and `inactive` require color codes, defined in `menu.h`  
+- with `void menu_set_arrow_symb(menu_t *menu, char arrow_symb)`, you set an arrow symbol, pointing to the currently selected value in menu. It's a single `char`.  
+- there is a boolean option `show_numbers` in `menu_t`, that can be activated to display numbers in front of every list item.  
+- other functions described by the example
 
-## license
-MIT
+
+##### Questions?
+Open an issue!
