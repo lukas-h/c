@@ -1,0 +1,8 @@
+*.gch
+*.o
+*.out
+.idea
+*.iml
+stack
+memory-system
+.vscode/

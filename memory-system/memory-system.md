@@ -1,0 +1,3 @@
+# Just a way to implement a basic stack and memory system ...
+
+https://bitbucket.org/lukashimsel/memory-system
