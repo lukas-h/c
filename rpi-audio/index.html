@@ -1,0 +1,23 @@
+<html>
+
+<head>
+</head>
+
+<body>
+    <script>
+function rq(value){
+var xhr = new XMLHttpRequest();
+xhr.open('GET', value, true);
+xhr.send();
+xhr.addEventListener("readystatechange", f, false);
+function f(e){
+if (xhr.readyState != 4 && xhr.status != 200) {
+    alert("could not send request: check server address in html file, maybe edit.");
+}
+}
+}
+</script>
+<a onclick="rq('/next/');">NEXT</a>
+</body>
+
+</html>
