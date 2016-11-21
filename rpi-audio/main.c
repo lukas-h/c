@@ -10,8 +10,6 @@
 #include <arpa/inet.h>
 #include <sys/stat.h>
 
-#include <groove/player.h> // add audio support
-
 /* --- defaults & definitions --- */
 #define CONFIG_PATH "/home/lukas/Projekte/c/rpi-audio/"
 #define HTTP_PORT	8976
@@ -217,6 +215,7 @@ int serve(int client){
 
     if(strcmp(url, "/next/")==0){
         send(client, HTTP_ERR_501, strlen(HTTP_ERR_501), 0);
+		printf("\a");
         return 0;
     }
     if(strcmp(url, "/previous/")==0){
