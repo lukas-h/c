@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <signal.h>
 
 #include <unistd.h>
@@ -9,6 +10,14 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
+#include "minimp3.h"
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <linux/soundcard.h>
+#include <pthread.h>
 
 /* --- defaults & definitions --- */
 #define CONFIG_PATH "/home/lukas/Projekte/c/rpi-audio/"
@@ -17,25 +26,39 @@
 #define FILE_CHUNK_SIZE	4096U
 
 /* --- HTTP messages --- */
-const char *HTTP_ERR_501 = "HTTP/1.0 501 Not Implemented\r\nContent-Type: text/html\r\nContent-length: 104\r\n\r\n"
+const char *HTTP_ERR_501 = "HTTP/1.0 501 Not Implemented\r\nContent-Type: text/html\r\nContent-length: 119\r\n\r\n"
 	"<html><head><title>Error</title></head><body><hr><h1>HTTP method not implemented.</h1><hr><p>toy-http</p></body></html>";
 
-const char *HTTP_ERR_404 = "HTTP/1.0 404 Not Found\r\nContent-Type: text/html\r\nContent-length: 91\r\n\r\n"
+const char *HTTP_ERR_404 = "HTTP/1.0 404 Not Found\r\nContent-Type: text/html\r\nContent-length: 106\r\n\r\n"
 	"<html><head><title>Error</title></head><body><hr><h1>File not found.</h1><hr><p>toy-http</p></body></html>";
 
-const char *HTTP_ERR_403 = "HTTP/1.0 403 Forbidden\r\nContent-Type: text/html\r\nContent-length: 91\r\n\r\n"
+const char *HTTP_ERR_403 = "HTTP/1.0 403 Forbidden\r\nContent-Type: text/html\r\nContent-length: 105\r\n\r\n"
 	"<html><head><title>Error</title></head><body><hr><h1>No permission.</h1><hr><p>toy-http</p></body></html>";
+
+const char *HTTP_SUC_200 = "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-length: 95\r\n\r\n"
+	"<html><head><title>OK</title></head><body><hr><h1>Success</h1><hr><p>toy-http</p></body></html>";
+
+char *files[] = {
+	"Bach-arr_Partita-E_I.mp3",
+	"NOTHING"
+};
+size_t i =0;
 
 ssize_t file_size(void);
 int parse_head_line(const char *src, char *method, char *filepath);
 ssize_t recv_line(int fd, char *buf, size_t len);
 int serve(int client);
+void *play_file(void *id);
 
 /* --- globals --- */
 int http_port = HTTP_PORT;
 int max_connections = MAX_CONNECTIONS;
 int serve_dir = 0;
-struct Groove *groove;
+pthread_t th;
+bool _stop=true;
+bool _pause=false;
+pthread_cond_t cnd;
+pthread_mutex_t mtx;
 
 /* --- error and signal handling --- */
 #define error(msg, ...)		fprintf(stderr, "\033[1;41merror:\033[0m" msg, ##__VA_ARGS__)
@@ -153,6 +176,7 @@ int main(int argc, char *argv[]){
 	}
 	close(fd);
 
+	pthread_exit(NULL);
 	return 0;
 }
 
@@ -216,19 +240,34 @@ int serve(int client){
     if(strcmp(url, "/next/")==0){
         send(client, HTTP_ERR_501, strlen(HTTP_ERR_501), 0);
 		printf("\a");
-        return 0;
     }
-    if(strcmp(url, "/previous/")==0){
+    else if(strcmp(url, "/previous/")==0){
         send(client, HTTP_ERR_501, strlen(HTTP_ERR_501), 0);
-        return 0;
     }
-    if(strcmp(url, "/pause/")==0){
-        send(client, HTTP_ERR_501, strlen(HTTP_ERR_501), 0);
-        return 0;
+    else if(strcmp(url, "/pause/")==0){
+        send(client, HTTP_SUC_200, strlen(HTTP_SUC_200), 0);
+
+		/*pthread_mutex_lock(&mtx);
+		_pause=true;
+		pthread_mutex_unlock(&mtx);*/
     }
-    if(strcmp(url, "/stop/")==0){
-        send(client, HTTP_ERR_501, strlen(HTTP_ERR_501), 0);
-        return 0;
+	else if(strcmp(url, "/resume/")==0){		
+        send(client, HTTP_SUC_200, strlen(HTTP_SUC_200), 0);
+
+		/*pthread_mutex_lock(&mtx);
+		_pause=false;
+		pthread_mutex_unlock(&mtx);*/
+	}
+	else if(strcmp(url, "/start/")==0){
+        send(client, HTTP_SUC_200, strlen(HTTP_SUC_200), 0);
+		//_stop=false;
+		if(pthread_create(&th, NULL, play_file, NULL)){
+			error("can not create audio thread!");
+		}
+	}
+    else if(strcmp(url, "/stop/")==0){        
+        send(client, HTTP_SUC_200, strlen(HTTP_SUC_200), 0);
+		//_stop=true;
     }
     if(strcmp(url, "/")==0){
         f=fopen("index.html", "r");
@@ -237,7 +276,7 @@ int serve(int client){
             return 0;
         }
 	    send(client, "HTTP/1.0 200 OK\r\nContent-type: text/html\r\n", 17, 0);
-	    sprintf(buf, "Content-length: %ld\r\nServer: toy-http\r\n\r\n", file_size());
+	    sprintf(buf, "Content-length: %ld\r\n\r\n", file_size());
         len = strlen(buf);
         send(client, buf, len, 0);
         while(!feof(f)){
@@ -248,9 +287,81 @@ int serve(int client){
     }
     else{
         send(client, HTTP_ERR_404, strlen(HTTP_ERR_404), 0);
-        return 0;
     }
 
-
 	return 0;
+}
+
+void *play_file(void *id){
+	mp3_decoder_t mp3;
+    mp3_info_t info;
+    int fd, pcm;
+    void *file_data;
+    unsigned char *stream_pos;
+    signed short sample_buf[MP3_MAX_SAMPLES_PER_FRAME];
+    int bytes_left;
+    int frame_size;
+    int value;
+
+	printf("should play now!\n");
+
+    fd = open(files[i], O_RDONLY);
+    if (fd < 0) {
+		printf("can not open file\n");
+        pthread_exit(NULL); 
+    }
+    
+    bytes_left = lseek(fd, 0, SEEK_END);    
+    file_data = mmap(0, bytes_left, PROT_READ, MAP_PRIVATE, fd, 0);
+    stream_pos = (unsigned char *)file_data;
+    bytes_left -= 100;
+
+    mp3 = mp3_create();
+    frame_size = mp3_decode(mp3, stream_pos, bytes_left, sample_buf, &info);
+    if (!frame_size){
+		error("can not get frame size\n");
+        pthread_exit(NULL); 
+    }
+    
+    pcm = open("/dev/dsp", O_WRONLY);
+    if (pcm < 0){
+		error("can not open /dev/dsp\n");
+		pthread_exit(NULL); 
+	}
+
+    value = AFMT_S16_LE;
+    if (ioctl(pcm, SNDCTL_DSP_SETFMT, &value) < 0){
+		error("can not set audio format\n");
+		pthread_exit(NULL); 
+	}
+
+    if (ioctl(pcm, SNDCTL_DSP_CHANNELS, &info.channels) < 0){
+        error("can not set audio channels\n");
+		pthread_exit(NULL);
+	}
+    if (ioctl(pcm, SNDCTL_DSP_SPEED, &info.sample_rate) < 0){
+        error("can not set audio sample rate\n");
+		pthread_exit(NULL); 
+	}
+	printf("HI");
+    while((bytes_left >= 0) && (frame_size > 0)) {
+		printf("*");
+		/*if(_stop==true){
+			close(pcm);
+			pthread_exit(NULL);
+		}*/
+		/*pthread_mutex_lock(&mtx);
+		while(_pause==true){
+			pthread_cond_wait(&cnd, &mtx);
+		}
+		pthread_mutex_unlock(&mtx);*/
+
+        stream_pos += frame_size;
+        bytes_left -= frame_size;
+        write(pcm, (const void *) sample_buf, info.audio_bytes);
+        frame_size = mp3_decode(mp3, stream_pos, bytes_left, sample_buf, NULL);
+    }
+
+    close(pcm);
+	pthread_exit(NULL); 
 }

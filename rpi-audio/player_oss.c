@@ -1,6 +1,6 @@
 // minimp3 example player application for Linux/OSS
 // this file is public domain -- do with it whatever you want!
-#include "libc.h"
+#include <stdio.h>
 #include "minimp3.h"
 #include <unistd.h>
 #include <fcntl.h>
@@ -11,7 +11,6 @@
 #include <linux/soundcard.h>
 
 size_t strlen(const char *s);
-#define out(text) write(1, (const void *) text, strlen(text))
 
 int main(int argc, char *argv[]) {
     mp3_decoder_t mp3;
@@ -24,17 +23,12 @@ int main(int argc, char *argv[]) {
     int frame_size;
     int value;
 
-    out("minimp3 -- a small MPEG-1 Audio Layer III player based on ffmpeg\n\n");
     if (argc < 2) {
-        out("Error: no input file specified!\n");
         return 1;
     }
 
     fd = open(argv[1], O_RDONLY);
     if (fd < 0) {
-        out("Error: cannot open `");
-        out(argv[1]);
-        out("'!\n");
         return 1;
     }
     
@@ -48,14 +42,10 @@ int main(int argc, char *argv[]) {
     mp3 = mp3_create();
     frame_size = mp3_decode(mp3, stream_pos, bytes_left, sample_buf, &info);
     if (!frame_size) {
-        out("\nError: not a valid MP3 audio file!\n");
         return 1;
     }
     
-    #define FAIL(msg) { \
-        out("\nError: " msg "\n"); \
-        return 1; \
-    }   
+    #define FAIL(msg) { return 1; }   
 
     pcm = open("/dev/dsp", O_WRONLY);
     if (pcm < 0) FAIL("cannot open DSP");
@@ -69,8 +59,6 @@ int main(int argc, char *argv[]) {
 
     if (ioctl(pcm, SNDCTL_DSP_SPEED, &info.sample_rate) < 0)
         FAIL("cannot set audio sample rate");
-
-    out("\n\nPress Ctrl+C to stop playback.\n");
 
     while ((bytes_left >= 0) && (frame_size > 0)) {
         stream_pos += frame_size;
