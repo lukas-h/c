@@ -22,7 +22,7 @@
 /* --- defaults & definitions --- */
 #define CONFIG_PATH "/home/lukas/Projekte/c/rpi-audio/"
 #define HTTP_PORT	8976
-#define MAX_CONNECTIONS	1
+#define MAX_CONNECTIONS	20
 #define FILE_CHUNK_SIZE	4096U
 
 /* --- HTTP messages --- */
@@ -47,14 +47,17 @@ size_t i =0;
 ssize_t file_size(void);
 int parse_head_line(const char *src, char *method, char *filepath);
 ssize_t recv_line(int fd, char *buf, size_t len);
-int serve(int client);
+void *serve(void *id);
 void *play_file(void *id);
 
 /* --- globals --- */
 int http_port = HTTP_PORT;
 int max_connections = MAX_CONNECTIONS;
 int serve_dir = 0;
-pthread_t th;
+pthread_t th; /* audio thread */
+pthread_t http_th[MAX_CONNECTIONS];
+int http_c[MAX_CONNECTIONS];
+size_t http_th_c;
 bool _stop=true;
 bool _pause=false;
 pthread_cond_t cnd;
@@ -158,21 +161,7 @@ int main(int argc, char *argv[]){
 			continue;
 		}
 
-		pid = fork();
-		if(pid==-1){
-			error("fork() failed\n");
-			continue;
-		}
-		if(pid==0){
-			close(fd);
-			serve(client);
-
-			shutdown(client, SHUT_RDWR);
-			close(client);
-
-			return 0;
-		}
-		close(client);
+		pthread_create(&(http_th[http_th_c--]), NULL, serve, NULL);
 	}
 	close(fd);
 
@@ -215,18 +204,24 @@ int parse_head_line(const char *src, char *method, char *filepath){
 	return 0;
 }
 
-int serve(int client){
+#define EXIT() \
+	shutdown(client, SHUT_RDWR); \
+	close(client); \
+	pthread_exit(NULL);
+
+void *serve(void *id){
+	int client = http_c[http_th_c-1];
 	char buf[FILE_CHUNK_SIZE]="\0", request[8]="\0", url[256]="\0";
 	ssize_t len;
 	FILE *f;
 
 	if(recv_line(client, buf, (sizeof(buf)-1) )<=3){
 		warning("can not receive request\n");
-		return 1;
+		EXIT();
 	}
 	if(parse_head_line(buf, request, url)){
 		warning("parsing error\n >request: `%s`\n", buf);
-		return 1;
+		EXIT();
 	}
 
 	while(recv_line(client, buf, (sizeof(buf)-1) ) > 0);
@@ -234,12 +229,11 @@ int serve(int client){
 	if( strcmp(request, "GET")!=0 ){
 		send(client, HTTP_ERR_501, strlen(HTTP_ERR_501), 0);
 		warning("request method not supported\n >method: `%s`\n", request);
-		return 0;
+		EXIT();
 	}
 
     if(strcmp(url, "/next/")==0){
         send(client, HTTP_ERR_501, strlen(HTTP_ERR_501), 0);
-		printf("\a");
     }
     else if(strcmp(url, "/previous/")==0){
         send(client, HTTP_ERR_501, strlen(HTTP_ERR_501), 0);
@@ -260,20 +254,22 @@ int serve(int client){
 	}
 	else if(strcmp(url, "/start/")==0){
         send(client, HTTP_SUC_200, strlen(HTTP_SUC_200), 0);
-		//_stop=false;
-		if(pthread_create(&th, NULL, play_file, NULL)){
-			error("can not create audio thread!");
+		if(_stop==true){
+			_stop=false;
+			if(pthread_create(&th, NULL, play_file, NULL)){
+				error("can not create audio thread!");
+			}
 		}
 	}
     else if(strcmp(url, "/stop/")==0){        
         send(client, HTTP_SUC_200, strlen(HTTP_SUC_200), 0);
-		//_stop=true;
+		_stop=true;
     }
-    if(strcmp(url, "/")==0){
+    else if(strcmp(url, "/")==0){
         f=fopen("index.html", "r");
         if(f==NULL){
             send(client, HTTP_ERR_404, strlen(HTTP_ERR_404), 0);
-            return 0;
+            EXIT();
         }
 	    send(client, "HTTP/1.0 200 OK\r\nContent-type: text/html\r\n", 17, 0);
 	    sprintf(buf, "Content-length: %ld\r\n\r\n", file_size());
@@ -289,7 +285,7 @@ int serve(int client){
         send(client, HTTP_ERR_404, strlen(HTTP_ERR_404), 0);
     }
 
-	return 0;
+	EXIT();
 }
 
 void *play_file(void *id){
