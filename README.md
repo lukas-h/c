@@ -18,7 +18,7 @@ a stack implementation (test) ...
 ### 3. ui
 UI widgets for the console *without ncurses*  
 1. a selection menu [HERE](ui/menu.md)  
-2. a yes-now dialog [HERE](ui/dialog.md)
+2. a yes-no dialog [HERE](ui/dialog.md)
 
 
 ### 4. more here:
