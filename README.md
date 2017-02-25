@@ -20,8 +20,15 @@ UI widgets for the console *without ncurses*
 1. a selection menu [HERE](ui/menu.md)  
 2. a yes-now dialog [HERE](ui/dialog.md)
 
+### 4. lexer  
+(for C-like languages)  
+[HERE](lexer/README.md)  
 
-### 4. more here:
+### 5. liblil  
+linked list library  
+[HERE](liblil/README.md)  
+
+### 6. more here:
 [Bitbucket - Snippets](https://bitbucket.org/snippets/lukashimsel/)  
 [toy-http](https://github.com/lukas-h/toy-http)  
 [my blog](http://himsel.me)
